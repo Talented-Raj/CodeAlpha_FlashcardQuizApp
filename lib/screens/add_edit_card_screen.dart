@@ -19,32 +19,32 @@ class AddEditCardScreen extends StatefulWidget {
 
 class _AddEditCardScreenState extends State<AddEditCardScreen> {
   final _formKey = GlobalKey<FormState>();
-  late TextEditingController _frontController;
-  late TextEditingController _backController;
+  late TextEditingController _questionController;
+  late TextEditingController _answerController;
   
-  // Category autocomplete sync controller
+  // Category autocomplete synced controller
   TextEditingController? _categoryController;
   String _categoryValue = '';
 
-  int _box = 1;
-  bool _isFavorite = false;
+  String _difficulty = 'Medium'; // "Easy", "Medium", "Hard"
+  bool _favorite = false;
 
   bool get _isEditing => widget.card != null;
 
   @override
   void initState() {
     super.initState();
-    _frontController = TextEditingController(text: widget.card?.front ?? '');
-    _backController = TextEditingController(text: widget.card?.back ?? '');
+    _questionController = TextEditingController(text: widget.card?.question ?? '');
+    _answerController = TextEditingController(text: widget.card?.answer ?? '');
     _categoryValue = widget.card?.category ?? '';
-    _box = widget.card?.box ?? 1;
-    _isFavorite = widget.card?.isFavorite ?? false;
+    _difficulty = widget.card?.difficulty ?? 'Medium';
+    _favorite = widget.card?.favorite ?? false;
   }
 
   @override
   void dispose() {
-    _frontController.dispose();
-    _backController.dispose();
+    _questionController.dispose();
+    _answerController.dispose();
     super.dispose();
   }
 
@@ -52,8 +52,8 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
     if (_formKey.currentState!.validate()) {
       final provider = Provider.of<FlashcardProvider>(context, listen: false);
 
-      final frontText = _frontController.text.trim();
-      final backText = _backController.text.trim();
+      final questionText = _questionController.text.trim();
+      final answerText = _answerController.text.trim();
       
       // Extract category from autocomplete controller or fallback
       final categoryText = (_categoryController != null && _categoryController!.text.trim().isNotEmpty)
@@ -73,11 +73,12 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
 
       if (_isEditing) {
         final updatedCard = widget.card!.copyWith(
-          front: frontText,
-          back: backText,
+          question: questionText,
+          answer: answerText,
           category: categoryText,
-          box: _box,
-          isFavorite: _isFavorite,
+          difficulty: _difficulty,
+          favorite: _favorite,
+          updatedAt: DateTime.now(),
         );
         provider.updateFlashcard(updatedCard).then((_) {
           Navigator.pop(context);
@@ -91,11 +92,11 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
         });
       } else {
         provider.addFlashcard(
-          frontText,
-          backText,
+          questionText,
+          answerText,
           categoryText,
-          box: _box,
-          isFavorite: _isFavorite,
+          _difficulty,
+          favorite: _favorite,
         ).then((_) {
           Navigator.pop(context);
           ScaffoldMessenger.of(context).showSnackBar(
@@ -148,14 +149,21 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
         title: Text(_isEditing ? 'Edit Flashcard' : 'Add Flashcard'),
         actions: [
           IconButton(
-            icon: Icon(_isFavorite ? Icons.star : Icons.star_border),
-            color: _isFavorite ? Colors.amber : null,
+            icon: Icon(_favorite ? Icons.star : Icons.star_border),
+            color: _favorite ? Colors.amber : null,
+            tooltip: _favorite ? 'Starred' : 'Star Flashcard',
             onPressed: () {
               setState(() {
-                _isFavorite = !_isFavorite;
+                _favorite = !_favorite;
               });
             },
           ),
+          if (_isEditing)
+            IconButton(
+              icon: const Icon(Icons.delete_outline, color: AppColors.error),
+              tooltip: 'Delete Card',
+              onPressed: _deleteCard,
+            ),
         ],
       ),
       body: SafeArea(
@@ -166,27 +174,27 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Front Input
+                // Question Input
                 TextFormField(
-                  controller: _frontController,
+                  controller: _questionController,
                   maxLines: 3,
                   decoration: const InputDecoration(
-                    labelText: 'Front Side (Question/Term)',
+                    labelText: 'Question text',
                     hintText: 'e.g. What is polymorphism?',
                   ),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Please enter front side text' : null,
+                  validator: (val) => val == null || val.trim().isEmpty ? 'Question cannot be empty' : null,
                 ),
                 const SizedBox(height: 16),
 
-                // Back Input
+                // Answer Input
                 TextFormField(
-                  controller: _backController,
+                  controller: _answerController,
                   maxLines: 4,
                   decoration: const InputDecoration(
-                    labelText: 'Back Side (Answer/Definition)',
+                    labelText: 'Answer text',
                     hintText: 'e.g. The ability of an object to take on many forms...',
                   ),
-                  validator: (val) => val == null || val.trim().isEmpty ? 'Please enter back side text' : null,
+                  validator: (val) => val == null || val.trim().isEmpty ? 'Answer cannot be empty' : null,
                 ),
                 const SizedBox(height: 16),
 
@@ -195,7 +203,7 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
                   initialValue: TextEditingValue(text: _categoryValue),
                   optionsBuilder: (TextEditingValue textEditingValue) {
                     if (textEditingValue.text.isEmpty) {
-                      return const Iterable<String>.empty();
+                      return provider.categories;
                     }
                     return provider.categories.where((String option) {
                       return option.toLowerCase().contains(textEditingValue.text.toLowerCase());
@@ -211,8 +219,8 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
                       focusNode: focusNode,
                       decoration: const InputDecoration(
                         labelText: 'Deck / Category',
-                        hintText: 'e.g. Computer Science, Spanish',
-                        suffixIcon: const Icon(Icons.arrow_drop_down),
+                        hintText: 'e.g. Programming, Mathematics, Science',
+                        suffixIcon: Icon(Icons.arrow_drop_down),
                       ),
                       validator: (val) => val == null || val.trim().isEmpty ? 'Please enter or select a deck category' : null,
                     );
@@ -222,53 +230,57 @@ class _AddEditCardScreenState extends State<AddEditCardScreen> {
 
                 // Difficulty Rating Label
                 Text(
-                  'Leitner Box level (Difficulty / Spacing offset)',
+                  'Card Difficulty',
                   style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Cards in higher boxes are scheduled for review less frequently.',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                  ),
                 ),
                 const SizedBox(height: 12),
 
                 // Material 3 Segmented Button
-                SegmentedButton<int>(
+                SegmentedButton<String>(
                   segments: const [
-                    ButtonSegment<int>(value: 1, label: Text('Box 1'), tooltip: 'New / Hardest (1 day offset)'),
-                    ButtonSegment<int>(value: 2, label: Text('2')),
-                    ButtonSegment<int>(value: 3, label: Text('3')),
-                    ButtonSegment<int>(value: 4, label: Text('4')),
-                    ButtonSegment<int>(value: 5, label: Text('Box 5'), tooltip: 'Mastered / Easiest (30 days offset)'),
+                    ButtonSegment<String>(value: 'Easy', label: Text('Easy')),
+                    ButtonSegment<String>(value: 'Medium', label: Text('Medium')),
+                    ButtonSegment<String>(value: 'Hard', label: Text('Hard')),
                   ],
-                  selected: {_box},
-                  onSelectionChanged: (Set<int> newSelection) {
+                  selected: {_difficulty},
+                  onSelectionChanged: (Set<String> newSelection) {
                     setState(() {
-                      _box = newSelection.first;
+                      _difficulty = newSelection.first;
                     });
                   },
                 ),
-                const SizedBox(height: 40),
+                const SizedBox(height: 24),
 
-                // Bottom Action buttons
+                // Favorite Toggle
+                SwitchListTile(
+                  title: const Text('Mark as Favorite', style: TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: const Text('Starred cards appear in the Favorites section'),
+                  value: _favorite,
+                  onChanged: (bool value) {
+                    setState(() {
+                      _favorite = value;
+                    });
+                  },
+                  secondary: Icon(
+                    _favorite ? Icons.star : Icons.star_border,
+                    color: _favorite ? Colors.amber : null,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Save Action Button
                 CustomButton(
-                  text: _isEditing ? 'Save Changes' : 'Create Flashcard',
+                  text: _isEditing ? 'Update Flashcard' : 'Save Flashcard',
                   icon: Icons.check,
                   onPressed: _saveCard,
                 ),
-                
-                if (_isEditing) ...[
-                  const SizedBox(height: 16),
-                  CustomButton(
-                    text: 'Delete Card',
-                    isPrimary: false,
-                    textColor: AppColors.error,
-                    icon: Icons.delete_outline,
-                    onPressed: _deleteCard,
-                  ),
-                ],
               ],
             ),
           ),

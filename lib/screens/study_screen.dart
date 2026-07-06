@@ -1,6 +1,7 @@
 import 'package:flip_card/flip_card.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/app_colors.dart';
 import '../constants/app_constants.dart';
@@ -26,6 +27,12 @@ class _StudyScreenState extends State<StudyScreen> {
   bool _isShuffled = false;
   late List<GlobalKey<FlipCardState>> _cardKeys;
   bool _isLoading = true;
+  
+  // Keep track of which card index is currently flipped/revealed to show/hide the "Show Answer" button
+  final Set<int> _revealedCardIndexes = {};
+  
+  // Prevent double-logging study activity for the same card in this session
+  final Set<int> _loggedCardIds = {};
 
   @override
   void initState() {
@@ -71,6 +78,7 @@ class _StudyScreenState extends State<StudyScreen> {
       _sessionCards = cards;
       _cardKeys = List.generate(cards.length, (_) => GlobalKey<FlipCardState>());
       _currentIndex = (savedIndex >= 0 && savedIndex < cards.length) ? savedIndex : 0;
+      _revealedCardIndexes.clear();
       _isLoading = false;
     });
 
@@ -113,9 +121,24 @@ class _StudyScreenState extends State<StudyScreen> {
     }
   }
 
-  void _flipCurrentCard() {
-    if (_sessionCards.isNotEmpty) {
-      _cardKeys[_currentIndex].currentState?.toggleCard();
+  void _revealAnswer() {
+    if (_sessionCards.isEmpty) return;
+    
+    // Toggle card flip
+    final currentKey = _cardKeys[_currentIndex];
+    if (currentKey.currentState != null && currentKey.currentState!.isFront) {
+      currentKey.currentState!.toggleCard();
+      
+      setState(() {
+        _revealedCardIndexes.add(_currentIndex);
+      });
+
+      // Increment daily study count in provider (only once per card)
+      final card = _sessionCards[_currentIndex];
+      if (card.id != null && !_loggedCardIds.contains(card.id)) {
+        _loggedCardIds.add(card.id!);
+        Provider.of<FlashcardProvider>(context, listen: false).logStudyActivity();
+      }
     }
   }
 
@@ -128,9 +151,9 @@ class _StudyScreenState extends State<StudyScreen> {
         _loadSessionCards();
         return;
       }
-      // Reset keys for shuffled list
       _cardKeys = List.generate(_sessionCards.length, (_) => GlobalKey<FlipCardState>());
       _currentIndex = 0;
+      _revealedCardIndexes.clear();
     });
     
     if (_pageController.hasClients) {
@@ -141,50 +164,6 @@ class _StudyScreenState extends State<StudyScreen> {
 
   void _toggleFavorite(FlashcardModel card) {
     Provider.of<FlashcardProvider>(context, listen: false).toggleFavorite(card);
-  }
-
-  void _submitReview(FlashcardModel card, bool correct) {
-    final provider = Provider.of<FlashcardProvider>(context, listen: false);
-    provider.reviewFlashcard(card, correct);
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(correct ? 'Moved to Box ${card.box < 5 ? card.box + 1 : 5}' : 'Moved back to Box 1'),
-        duration: const Duration(milliseconds: 600),
-        behavior: SnackBarBehavior.floating,
-        backgroundColor: correct ? AppColors.success : AppColors.error,
-      ),
-    );
-
-    // Auto-advance if not at the end
-    if (_currentIndex < _sessionCards.length - 1) {
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) _nextPage();
-      });
-    } else {
-      // Completed last card
-      Future.delayed(const Duration(milliseconds: 700), () {
-        if (mounted) {
-          showDialog(
-            context: context,
-            builder: (context) => AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(AppConstants.radiusLarge)),
-              title: const Text('Deck Complete!', style: TextStyle(fontWeight: FontWeight.bold)),
-              content: const Text('You have completed reviewing all the cards in this session. Great job!'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.pop(context); // Close dialog
-                    Navigator.pop(context); // Exit study screen
-                  },
-                  child: const Text('Go Home'),
-                ),
-              ],
-            ),
-          );
-        }
-      });
-    }
   }
 
   @override
@@ -235,14 +214,15 @@ class _StudyScreenState extends State<StudyScreen> {
 
     final currentCard = _sessionCards[_currentIndex];
     final progress = _sessionCards.isEmpty ? 0.0 : (_currentIndex + 1) / _sessionCards.length;
+    final isFlipped = _revealedCardIndexes.contains(_currentIndex);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(widget.category),
         actions: [
           IconButton(
-            icon: Icon(currentCard.isFavorite ? Icons.star : Icons.star_border),
-            color: currentCard.isFavorite ? Colors.amber : null,
+            icon: Icon(currentCard.favorite ? Icons.star : Icons.star_border),
+            color: currentCard.favorite ? Colors.amber : null,
             onPressed: () => _toggleFavorite(currentCard),
           ),
         ],
@@ -252,7 +232,7 @@ class _StudyScreenState extends State<StudyScreen> {
           padding: const EdgeInsets.all(AppConstants.paddingMedium),
           child: Column(
             children: [
-              // Progress Bar
+              // Progress indicator text & bar
               Row(
                 children: [
                   Expanded(
@@ -268,7 +248,7 @@ class _StudyScreenState extends State<StudyScreen> {
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    '${_currentIndex + 1}/${_sessionCards.length}',
+                    'Card ${_currentIndex + 1} of ${_sessionCards.length}',
                     style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                 ],
@@ -287,18 +267,21 @@ class _StudyScreenState extends State<StudyScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: FlipCard(
                         key: _cardKeys[index],
+                        flipOnTouch: false, // Control flip strictly via the Show Answer button
                         direction: FlipDirection.HORIZONTAL,
                         speed: 300,
                         front: _buildCardFace(
                           context: context,
                           title: 'QUESTION',
-                          content: card.front,
+                          content: card.question,
+                          difficulty: card.difficulty,
                           cardColor: theme.cardColor,
                         ),
                         back: _buildCardFace(
                           context: context,
                           title: 'ANSWER',
-                          content: card.back,
+                          content: card.answer,
+                          difficulty: card.difficulty,
                           cardColor: theme.colorScheme.primary.withOpacity(0.05),
                           borderSide: BorderSide(
                             color: theme.colorScheme.primary.withOpacity(0.3),
@@ -312,55 +295,52 @@ class _StudyScreenState extends State<StudyScreen> {
               ),
               const SizedBox(height: 24),
 
-              // Spaced Repetition Session Rating Bar
-              Row(
-                children: [
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Forgot',
-                      isPrimary: false,
-                      textColor: AppColors.error,
-                      onPressed: () => _submitReview(currentCard, false),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: CustomButton(
-                      text: 'Know',
-                      backgroundColor: AppColors.success,
-                      onPressed: () => _submitReview(currentCard, true),
-                    ),
-                  ),
-                ],
-              ),
+              // Large Show Answer / Flip Button
+              if (!isFlipped)
+                CustomButton(
+                  text: 'Show Answer',
+                  icon: Icons.flip,
+                  onPressed: _revealAnswer,
+                )
+              else
+                CustomButton(
+                  text: 'Answer Revealed',
+                  icon: Icons.check,
+                  backgroundColor: AppColors.success,
+                  onPressed: () {
+                    // Let the user flip it back if they want to restudy
+                    final currentKey = _cardKeys[_currentIndex];
+                    if (currentKey.currentState != null && !currentKey.currentState!.isFront) {
+                      currentKey.currentState!.toggleCard();
+                      setState(() {
+                        _revealedCardIndexes.remove(_currentIndex);
+                      });
+                    }
+                  },
+                ),
               const SizedBox(height: 24),
 
-              // Tool Controls Bottom Bar: Prev, Flip, Next, Shuffle
+              // Toolbar Navigation controls: Prev, Shuffle, Next
               CustomCard(
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     IconButton(
-                      icon: const Icon(Icons.skip_previous),
+                      icon: const Icon(Icons.arrow_back),
                       tooltip: 'Previous Card',
                       onPressed: _currentIndex > 0 ? _prevPage : null,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.flip),
-                      tooltip: 'Flip Card',
-                      onPressed: _flipCurrentCard,
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.skip_next),
-                      tooltip: 'Next Card',
-                      onPressed: _currentIndex < _sessionCards.length - 1 ? _nextPage : null,
                     ),
                     IconButton(
                       icon: Icon(_isShuffled ? Icons.shuffle_on_outlined : Icons.shuffle),
                       tooltip: 'Shuffle Deck',
                       color: _isShuffled ? theme.colorScheme.primary : null,
                       onPressed: _toggleShuffle,
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.arrow_forward),
+                      tooltip: 'Next Card',
+                      onPressed: _currentIndex < _sessionCards.length - 1 ? _nextPage : null,
                     ),
                   ],
                 ),
@@ -376,6 +356,7 @@ class _StudyScreenState extends State<StudyScreen> {
     required BuildContext context,
     required String title,
     required String content,
+    required String difficulty,
     required Color cardColor,
     BorderSide? borderSide,
   }) {
@@ -407,22 +388,50 @@ class _StudyScreenState extends State<StudyScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primary.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  title,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: theme.colorScheme.primary,
-                    letterSpacing: 1.5,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primary.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      title,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: theme.colorScheme.primary,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
                   ),
-                ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: difficulty.toLowerCase() == 'hard'
+                          ? AppColors.error.withOpacity(0.1)
+                          : difficulty.toLowerCase() == 'medium'
+                              ? AppColors.warning.withOpacity(0.1)
+                              : AppColors.success.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      difficulty.toUpperCase(),
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: difficulty.toLowerCase() == 'hard'
+                            ? AppColors.error
+                            : difficulty.toLowerCase() == 'medium'
+                                ? AppColors.warning
+                                : AppColors.success,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 32),
+              const Spacer(),
               SingleChildScrollView(
                 child: Text(
                   content,
@@ -433,14 +442,23 @@ class _StudyScreenState extends State<StudyScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 32),
-              Text(
-                'Tap card to flip',
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
-                  fontStyle: FontStyle.italic,
+              const Spacer(),
+              if (title == 'QUESTION')
+                Text(
+                  'Tap "Show Answer" to flip',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+                    fontStyle: FontStyle.italic,
+                  ),
+                )
+              else
+                Text(
+                  'Answer Revealed',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: AppColors.success,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
             ],
           ),
         ),

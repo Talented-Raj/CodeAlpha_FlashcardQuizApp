@@ -3,7 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:provider/provider.dart';
 import '../constants/app_colors.dart';
 import '../constants/app_constants.dart';
-import '../core/app_router.dart';
+import '../utils/app_router.dart';
 import '../providers/auth_provider.dart';
 
 class SplashScreen extends StatefulWidget {

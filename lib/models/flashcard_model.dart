@@ -2,70 +2,70 @@ import 'dart:convert';
 
 class FlashcardModel {
   final int? id;
-  final String front;
-  final String back;
+  final String question;
+  final String answer;
   final String category;
-  final bool isFavorite;
-  final int box; // Leitner Box number (typically 1 to 5)
-  final DateTime nextReviewDate;
+  final String difficulty; // "Easy", "Medium", "Hard"
+  final bool favorite;
   final DateTime createdAt;
+  final DateTime updatedAt;
 
   FlashcardModel({
     this.id,
-    required this.front,
-    required this.back,
+    required this.question,
+    required this.answer,
     required this.category,
-    this.isFavorite = false,
-    this.box = 1,
-    required this.nextReviewDate,
+    required this.difficulty,
+    this.favorite = false,
     required this.createdAt,
+    required this.updatedAt,
   });
 
   FlashcardModel copyWith({
     int? id,
-    String? front,
-    String? back,
+    String? question,
+    String? answer,
     String? category,
-    bool? isFavorite,
-    int? box,
-    DateTime? nextReviewDate,
+    String? difficulty,
+    bool? favorite,
     DateTime? createdAt,
+    DateTime? updatedAt,
   }) {
     return FlashcardModel(
       id: id ?? this.id,
-      front: front ?? this.front,
-      back: back ?? this.back,
+      question: question ?? this.question,
+      answer: answer ?? this.answer,
       category: category ?? this.category,
-      isFavorite: isFavorite ?? this.isFavorite,
-      box: box ?? this.box,
-      nextReviewDate: nextReviewDate ?? this.nextReviewDate,
+      difficulty: difficulty ?? this.difficulty,
+      favorite: favorite ?? this.favorite,
       createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'front': front,
-      'back': back,
+      'question': question,
+      'answer': answer,
       'category': category,
-      'is_favorite': isFavorite ? 1 : 0, // SQLite stores boolean as 0/1
-      'box': box,
-      'next_review_date': nextReviewDate.toIso8601String(),
-      'created_at': createdAt.toIso8601String(),
+      'difficulty': difficulty,
+      'favorite': favorite ? 1 : 0,
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
     };
   }
 
   factory FlashcardModel.fromMap(Map<String, dynamic> map) {
     return FlashcardModel(
       id: map['id'] as int?,
-      front: map['front'] as String,
-      back: map['back'] as String,
+      question: map['question'] as String,
+      answer: map['answer'] as String,
       category: map['category'] as String,
-      isFavorite: (map['is_favorite'] as int) == 1,
-      box: map['box'] as int,
-      nextReviewDate: DateTime.parse(map['next_review_date'] as String),
-      createdAt: DateTime.parse(map['created_at'] as String),
+      difficulty: map['difficulty'] as String? ?? 'Medium',
+      favorite: (map['favorite'] as int? ?? 0) == 1,
+      createdAt: DateTime.parse(map['createdAt'] as String? ?? DateTime.now().toIso8601String()),
+      updatedAt: DateTime.parse(map['updatedAt'] as String? ?? DateTime.now().toIso8601String()),
     );
   }
 
@@ -76,6 +76,6 @@ class FlashcardModel {
 
   @override
   String toString() {
-    return 'FlashcardModel(id: $id, front: $front, back: $back, category: $category, isFavorite: $isFavorite, box: $box, nextReviewDate: $nextReviewDate, createdAt: $createdAt)';
+    return 'FlashcardModel(id: $id, question: $question, answer: $answer, category: $category, difficulty: $difficulty, favorite: $favorite, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 }

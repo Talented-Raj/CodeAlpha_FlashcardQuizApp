@@ -2,11 +2,11 @@ class AppConstants {
   AppConstants._();
 
   // App Name
-  static const String appName = 'Memora';
+  static const String appName = 'Flashcard Quiz App';
 
   // Database Configurations
-  static const String dbName = 'memora.db';
-  static const int dbVersion = 2;
+  static const String dbName = 'flashcard_quiz.db';
+  static const int dbVersion = 3;
 
   // Shared Preferences Keys
   static const String keyThemeMode = 'theme_mode';

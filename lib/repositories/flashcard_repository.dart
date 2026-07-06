@@ -20,7 +20,7 @@ abstract class FlashcardRepository {
   /// Returns the number of affected rows.
   Future<int> deleteFlashcard(int id);
 
-  /// Searches flashcards where front text or back text matches the query.
+  /// Searches flashcards where question, answer, or category matches the query.
   Future<List<FlashcardModel>> searchFlashcards(String query);
 
   /// Retrieves flashcards matching a specific category.
@@ -32,11 +32,8 @@ abstract class FlashcardRepository {
   /// Retrieves a list of all distinct category names present in the database.
   Future<List<String>> getCategories();
 
-  /// Retrieves flashcards that are due for review (nextReviewDate <= current time).
-  Future<List<FlashcardModel>> getDueFlashcards();
-
   /// Retrieves flashcards filtered by category, favorite status, and sorted by a specific field.
-  /// Supported values for [sortBy]: 'front', 'box', 'next_review_date', 'created_at'.
+  /// Supported values for [sortBy]: 'question', 'category', 'createdAt', 'difficulty'.
   Future<List<FlashcardModel>> getFlashcardsFiltered({
     String? category,
     bool? isFavorite,

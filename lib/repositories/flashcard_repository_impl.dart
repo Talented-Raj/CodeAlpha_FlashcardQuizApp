@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import '../core/app_exceptions.dart';
+import '../utils/app_exceptions.dart';
 import '../database/database_helper.dart';
 import '../models/flashcard_model.dart';
 import 'flashcard_repository.dart';
@@ -15,7 +15,7 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final id = await db.insert(
-        'flashcards',
+        'Flashcards',
         card.toMap(),
       );
       return card.copyWith(id: id);
@@ -30,7 +30,7 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final maps = await db.query(
-        'flashcards',
+        'Flashcards',
         where: 'id = ?',
         whereArgs: [id],
         limit: 1,
@@ -51,8 +51,8 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
-        orderBy: 'created_at DESC',
+        'Flashcards',
+        orderBy: 'createdAt DESC',
       );
 
       return maps.map((map) => FlashcardModel.fromMap(map)).toList();
@@ -70,7 +70,7 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final count = await db.update(
-        'flashcards',
+        'Flashcards',
         card.toMap(),
         where: 'id = ?',
         whereArgs: [card.id],
@@ -92,7 +92,7 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final count = await db.delete(
-        'flashcards',
+        'Flashcards',
         where: 'id = ?',
         whereArgs: [id],
       );
@@ -114,10 +114,10 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
       final db = await _dbHelper.database;
       final dbQuery = '%$query%';
       final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
-        where: 'front LIKE ? OR back LIKE ? OR category LIKE ?',
+        'Flashcards',
+        where: 'question LIKE ? OR answer LIKE ? OR category LIKE ?',
         whereArgs: [dbQuery, dbQuery, dbQuery],
-        orderBy: 'created_at DESC',
+        orderBy: 'createdAt DESC',
       );
 
       return maps.map((map) => FlashcardModel.fromMap(map)).toList();
@@ -132,10 +132,10 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
+        'Flashcards',
         where: 'category = ?',
         whereArgs: [category],
-        orderBy: 'created_at DESC',
+        orderBy: 'createdAt DESC',
       );
 
       return maps.map((map) => FlashcardModel.fromMap(map)).toList();
@@ -150,9 +150,9 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
-        where: 'is_favorite = 1',
-        orderBy: 'created_at DESC',
+        'Flashcards',
+        where: 'favorite = 1',
+        orderBy: 'createdAt DESC',
       );
 
       return maps.map((map) => FlashcardModel.fromMap(map)).toList();
@@ -167,32 +167,13 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
     try {
       final db = await _dbHelper.database;
       final List<Map<String, dynamic>> maps = await db.rawQuery(
-        'SELECT DISTINCT category FROM flashcards ORDER BY category ASC',
+        'SELECT DISTINCT category FROM Flashcards ORDER BY category ASC',
       );
 
       return maps.map((row) => row['category'] as String).toList();
     } catch (e, stackTrace) {
       debugPrint('Error fetching categories: $e\n$stackTrace');
       throw DatabaseException('Failed to fetch distinct categories', e.toString());
-    }
-  }
-
-  @override
-  Future<List<FlashcardModel>> getDueFlashcards() async {
-    try {
-      final db = await _dbHelper.database;
-      final nowString = DateTime.now().toIso8601String();
-      final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
-        where: 'next_review_date <= ?',
-        whereArgs: [nowString],
-        orderBy: 'next_review_date ASC',
-      );
-
-      return maps.map((map) => FlashcardModel.fromMap(map)).toList();
-    } catch (e, stackTrace) {
-      debugPrint('Error fetching due flashcards: $e\n$stackTrace');
-      throw DatabaseException('Failed to fetch due review flashcards', e.toString());
     }
   }
 
@@ -215,28 +196,28 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
       }
 
       if (isFavorite != null) {
-        whereClauses.add('is_favorite = ?');
+        whereClauses.add('favorite = ?');
         whereArgs.add(isFavorite ? 1 : 0);
       }
 
       final whereString = whereClauses.isEmpty ? null : whereClauses.join(' AND ');
 
-      // Map dynamic sort arguments to database columns safely to prevent SQL injection
-      String orderByColumn = 'created_at';
+      // Map dynamic sort arguments to database columns safely
+      String orderByColumn = 'createdAt';
       if (sortBy != null) {
         switch (sortBy) {
-          case 'front':
-            orderByColumn = 'front';
+          case 'question':
+            orderByColumn = 'question';
             break;
-          case 'box':
-            orderByColumn = 'box';
+          case 'category':
+            orderByColumn = 'category';
             break;
-          case 'next_review_date':
-            orderByColumn = 'next_review_date';
+          case 'difficulty':
+            orderByColumn = 'difficulty';
             break;
-          case 'created_at':
+          case 'createdAt':
           default:
-            orderByColumn = 'created_at';
+            orderByColumn = 'createdAt';
             break;
         }
       }
@@ -245,7 +226,7 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
       final orderByString = '$orderByColumn $direction';
 
       final List<Map<String, dynamic>> maps = await db.query(
-        'flashcards',
+        'Flashcards',
         where: whereString,
         whereArgs: whereArgs,
         orderBy: orderByString,

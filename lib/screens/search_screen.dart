@@ -49,12 +49,10 @@ class _SearchScreenState extends State<SearchScreen> {
     final trimmed = query.trim();
     if (trimmed.isEmpty) return;
 
-    // Filter duplicates and append at start
     List<String> newList = List.from(_recentSearches);
     newList.removeWhere((item) => item.toLowerCase() == trimmed.toLowerCase());
     newList.insert(0, trimmed);
 
-    // Keep top 10
     if (newList.length > 10) {
       newList = newList.sublist(0, 10);
     }
@@ -105,7 +103,7 @@ class _SearchScreenState extends State<SearchScreen> {
             controller: _searchController,
             autofocus: true,
             decoration: InputDecoration(
-              hintText: 'Search front, back, or deck...',
+              hintText: 'Search question, answer, category...',
               prefixIcon: const Icon(Icons.search),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
@@ -149,7 +147,6 @@ class _SearchScreenState extends State<SearchScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Display History & Suggestions Decks if query is empty
               if (!hasQuery) ...[
                 _buildSearchHistory(theme),
                 const SizedBox(height: 24),
@@ -181,12 +178,12 @@ class _SearchScreenState extends State<SearchScreen> {
                                         crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Text(
-                                            card.front,
+                                            card.question,
                                             style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
                                           ),
                                           const SizedBox(height: 4),
                                           Text(
-                                            card.back,
+                                            card.answer,
                                             maxLines: 2,
                                             overflow: TextOverflow.ellipsis,
                                             style: theme.textTheme.bodyMedium?.copyWith(
@@ -213,8 +210,15 @@ class _SearchScreenState extends State<SearchScreen> {
                                               ),
                                               const SizedBox(width: 8),
                                               Text(
-                                                'Box ${card.box}',
-                                                style: theme.textTheme.bodySmall,
+                                                card.difficulty,
+                                                style: theme.textTheme.bodySmall?.copyWith(
+                                                  color: card.difficulty.toLowerCase() == 'hard'
+                                                      ? AppColors.error
+                                                      : card.difficulty.toLowerCase() == 'medium'
+                                                          ? AppColors.warning
+                                                          : AppColors.success,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -223,10 +227,10 @@ class _SearchScreenState extends State<SearchScreen> {
                                     ),
                                     IconButton(
                                       icon: Icon(
-                                        card.isFavorite ? Icons.star : Icons.star_border,
-                                        color: card.isFavorite ? Colors.amber : null,
+                                        card.favorite ? Icons.star : Icons.star_border,
+                                        color: card.favorite ? Colors.amber : null,
                                       ),
-                                      tooltip: card.isFavorite ? 'Remove from favorites' : 'Add to favorites',
+                                      tooltip: card.favorite ? 'Remove from favorites' : 'Add to favorites',
                                       onPressed: () => flashcardProvider.toggleFavorite(card),
                                     ),
                                   ],
@@ -262,7 +266,7 @@ class _SearchScreenState extends State<SearchScreen> {
             ),
             TextButton(
               onPressed: _clearSearchHistory,
-              child: const Text('Clear All', style: TextStyle(fontSize: 13)),
+              child: const Text('Clear All', style: TextStyle(fontSize: 12)),
             ),
           ],
         ),
@@ -272,10 +276,9 @@ class _SearchScreenState extends State<SearchScreen> {
           runSpacing: 8,
           children: _recentSearches.map((item) {
             return InputChip(
-              label: Text(item, style: const TextStyle(fontSize: 13)),
+              label: Text(item),
               onPressed: () => _triggerSearch(item),
               onDeleted: () => _removeHistoryItem(item),
-              deleteIconColor: theme.iconTheme.color?.withOpacity(0.6),
             );
           }).toList(),
         ),
@@ -284,38 +287,27 @@ class _SearchScreenState extends State<SearchScreen> {
   }
 
   Widget _buildSearchSuggestions(ThemeData theme, FlashcardProvider provider) {
-    if (provider.categories.isEmpty) return const SizedBox.shrink();
+    final categories = provider.categories;
+    if (categories.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Search by Deck',
+          'Search by Category Decks',
           style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 12),
-        ListView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: provider.categories.length > 5 ? 5 : provider.categories.length,
-          itemBuilder: (context, index) {
-            final category = provider.categories[index];
-            final cardsCount = provider.flashcards.where((c) => c.category == category).length;
-            return Card(
-              margin: const EdgeInsets.only(bottom: 8),
-              child: ListTile(
-                leading: const CircleAvatar(
-                  backgroundColor: AppColors.primary,
-                  radius: 16,
-                  child: Icon(Icons.style, color: Colors.white, size: 16),
-                ),
-                title: Text(category, style: const TextStyle(fontWeight: FontWeight.bold)),
-                subtitle: Text('$cardsCount flashcards'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => _triggerSearch(category),
-              ),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: categories.map((cat) {
+            return ActionChip(
+              avatar: const Icon(Icons.folder_open, size: 16),
+              label: Text(cat),
+              onPressed: () => _triggerSearch(cat),
             );
-          },
+          }).toList(),
         ),
       ],
     ).animate().fade(delay: 100.ms, duration: 300.ms);
@@ -323,31 +315,28 @@ class _SearchScreenState extends State<SearchScreen> {
 
   Widget _buildNoResultsView(ThemeData theme, bool isDark, String query) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 60, horizontal: 24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.search_off,
-              size: 72,
-              color: isDark ? AppColors.darkTextMuted : AppColors.lightTextMuted,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(
+            Icons.search_off,
+            size: 64,
+            color: Colors.grey,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'No Results Found',
+            style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'No flashcards matched your query: "$query".\nTry checking the spelling or use simpler keywords.',
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
             ),
-            const SizedBox(height: 24),
-            Text(
-              'No matches found',
-              style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'We couldn\'t find any flashcards matching "$query". Try adjusting your spelling or searching for a different term.',
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     ).animate().fade(duration: 400.ms);
   }
