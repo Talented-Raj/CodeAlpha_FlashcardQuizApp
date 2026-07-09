@@ -586,4 +586,128 @@ class FlashcardRepositoryImpl implements FlashcardRepository {
       debugPrint('Error resetting database: $e');
     }
   }
+
+  @override
+  Future<String> getHostIp(String baseUrl) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/host-ip'));
+      if (response.statusCode == 200) {
+        final res = json.decode(response.body);
+        return res['ip'] as String? ?? 'localhost';
+      }
+      return 'localhost';
+    } catch (e) {
+      debugPrint('Error getting host IP: $e');
+      return 'localhost';
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>> getLiveQuizState(String baseUrl) async {
+    try {
+      final response = await http.get(Uri.parse('$baseUrl/api/quiz/state'));
+      if (response.statusCode == 200) {
+        return json.decode(response.body) as Map<String, dynamic>;
+      }
+      throw NetworkException('Failed to get quiz state: ${response.statusCode}');
+    } catch (e) {
+      throw NetworkException('Failed to connect to server: $e');
+    }
+  }
+
+  @override
+  Future<void> hostLiveQuiz(String baseUrl, String category, int timerSeconds) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/quiz/host'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'category': category,
+          'timeLimit': timerSeconds,
+        }),
+      );
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to host quiz');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> startLiveQuiz(String baseUrl) async {
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/api/quiz/start'));
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to start quiz');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> joinLiveQuiz(String baseUrl, String nickname) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/quiz/join'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({'nickname': nickname}),
+      );
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to join quiz');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> submitLiveAnswer(String baseUrl, String nickname, String answer) async {
+    try {
+      final response = await http.post(
+        Uri.parse('$baseUrl/api/quiz/submit'),
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode({
+          'nickname': nickname,
+          'answer': answer,
+        }),
+      );
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to submit answer');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> nextLiveQuestion(String baseUrl) async {
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/api/quiz/next'));
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to advance quiz');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
+
+  @override
+  Future<void> endLiveQuiz(String baseUrl) async {
+    try {
+      final response = await http.post(Uri.parse('$baseUrl/api/quiz/end'));
+      if (response.statusCode != 200) {
+        final err = json.decode(response.body);
+        throw NetworkException(err['error'] ?? 'Failed to end quiz');
+      }
+    } catch (e) {
+      throw NetworkException(e.toString());
+    }
+  }
 }

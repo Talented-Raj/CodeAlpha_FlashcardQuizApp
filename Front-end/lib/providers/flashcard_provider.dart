@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/flashcard_model.dart';
@@ -6,6 +7,14 @@ import '../repositories/flashcard_repository_impl.dart';
 
 class FlashcardProvider extends ChangeNotifier {
   final FlashcardRepository _repository;
+
+  // Live Quiz State
+  String _serverUrl = 'http://localhost:5000';
+  String _hostIp = '';
+  String _studentNickname = '';
+  bool _isQuizHost = false;
+  Map<String, dynamic>? _quizState;
+  Timer? _quizSyncTimer;
 
   List<FlashcardModel> _flashcards = [];
   List<String> _categories = [];
@@ -187,5 +196,101 @@ class FlashcardProvider extends ChangeNotifier {
     } catch (e) {
       debugPrint('Error resetting database: $e');
     }
+  }
+
+  // --- Live Quiz Getters ---
+  String get serverUrl => _serverUrl;
+  String get hostIp => _hostIp;
+  String get studentNickname => _studentNickname;
+  bool get isQuizHost => _isQuizHost;
+  Map<String, dynamic>? get quizState => _quizState;
+
+  void updateServerUrl(String url) {
+    if (url.endsWith('/')) {
+      url = url.substring(0, url.length - 1);
+    }
+    _serverUrl = url;
+    notifyListeners();
+  }
+
+  Future<void> fetchHostIp() async {
+    _hostIp = await _repository.getHostIp(_serverUrl);
+    notifyListeners();
+  }
+
+  Future<void> hostQuiz(String category, int timerSeconds) async {
+    _isQuizHost = true;
+    _studentNickname = '';
+    await _repository.hostLiveQuiz(_serverUrl, category, timerSeconds);
+    await fetchHostIp();
+    startSyncLoop();
+  }
+
+  Future<void> joinQuiz(String nickname) async {
+    _isQuizHost = false;
+    _studentNickname = nickname;
+    await _repository.joinLiveQuiz(_serverUrl, nickname);
+    startSyncLoop();
+  }
+
+  Future<void> startLiveQuiz() async {
+    await _repository.startLiveQuiz(_serverUrl);
+    await syncQuizState();
+  }
+
+  Future<void> submitLiveAnswer(String answer) async {
+    await _repository.submitLiveAnswer(_serverUrl, _studentNickname, answer);
+    await syncQuizState();
+  }
+
+  Future<void> nextLiveQuestion() async {
+    await _repository.nextLiveQuestion(_serverUrl);
+    await syncQuizState();
+  }
+
+  Future<void> endLiveQuiz() async {
+    stopSyncLoop();
+    try {
+      await _repository.endLiveQuiz(_serverUrl);
+    } catch (e) {
+      debugPrint('Error ending quiz on server: $e');
+    }
+    _quizState = null;
+    _isQuizHost = false;
+    _studentNickname = '';
+    notifyListeners();
+  }
+
+  Future<void> syncQuizState() async {
+    try {
+      final state = await _repository.getLiveQuizState(_serverUrl);
+      _quizState = state;
+      notifyListeners();
+
+      if (state['status'] == 'ended' || state['status'] == 'idle') {
+        stopSyncLoop();
+      }
+    } catch (e) {
+      debugPrint('Sync Quiz State error: $e');
+    }
+  }
+
+  void startSyncLoop() {
+    stopSyncLoop();
+    syncQuizState();
+    _quizSyncTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      syncQuizState();
+    });
+  }
+
+  void stopSyncLoop() {
+    _quizSyncTimer?.cancel();
+    _quizSyncTimer = null;
+  }
+
+  @override
+  void dispose() {
+    stopSyncLoop();
+    super.dispose();
   }
 }

@@ -52,4 +52,28 @@ abstract class FlashcardRepository {
 
   /// Resets the database, clearing all flashcards and study logs and re-seeding default cards.
   Future<void> resetDatabase();
+
+  /// Gets the Host server's local network IP.
+  Future<String> getHostIp(String baseUrl);
+
+  /// Gets the current state of the Live Quiz session.
+  Future<Map<String, dynamic>> getLiveQuizState(String baseUrl);
+
+  /// Hosts a new Live Quiz session with the given settings.
+  Future<void> hostLiveQuiz(String baseUrl, String category, int timerSeconds);
+
+  /// Starts the hosted Live Quiz session.
+  Future<void> startLiveQuiz(String baseUrl);
+
+  /// Joins the Live Quiz session as a student nickname.
+  Future<void> joinLiveQuiz(String baseUrl, String nickname);
+
+  /// Submits the student's answer to the Live Quiz.
+  Future<void> submitLiveAnswer(String baseUrl, String nickname, String answer);
+
+  /// Advances the Live Quiz session to the next question.
+  Future<void> nextLiveQuestion(String baseUrl);
+
+  /// Ends the Live Quiz session.
+  Future<void> endLiveQuiz(String baseUrl);
 }

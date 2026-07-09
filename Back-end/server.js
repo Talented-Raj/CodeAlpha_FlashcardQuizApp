@@ -3,6 +3,7 @@ const cors = require('cors');
 const bodyParser = require('body-parser');
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -198,9 +199,232 @@ function writeDB() {
 // Initial DB load
 readDB();
 
-// API Routes
+// --- Live Quiz State ---
+let quizSession = {
+  status: 'idle', // 'idle' | 'lobby' | 'active' | 'ended'
+  category: 'All Decks',
+  timeLimit: 30,
+  currentQuestionIndex: 0,
+  questions: [],
+  students: [], // array of { nickname, score, answeredCorrectly }
+  answersSubmitted: {}, // map of nickname -> answer
+  activeQuestionEndTime: null
+};
 
-// 1. Reset Database
+// Generate multiple choice options dynamically
+function generateOptions(correctAnswer, allCards) {
+  const correct = correctAnswer;
+  const otherAnswers = [...new Set(allCards.map(c => c.answer).filter(a => a !== correct))];
+  
+  // Shuffle other answers
+  for (let i = otherAnswers.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [otherAnswers[i], otherAnswers[j]] = [otherAnswers[j], otherAnswers[i]];
+  }
+  
+  const distractors = otherAnswers.slice(0, 3);
+  const options = [correct, ...distractors];
+  
+  // Shuffle combined options
+  for (let i = options.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [options[i], options[j]] = [options[j], options[i]];
+  }
+  
+  return options;
+}
+
+// Get host's local IP address
+app.get('/api/host-ip', (req, res) => {
+  const networkInterfaces = os.networkInterfaces();
+  let localIp = 'localhost';
+  for (const name of Object.keys(networkInterfaces)) {
+    for (const net of networkInterfaces[name]) {
+      if (net.family === 'IPv4' && !net.internal) {
+        localIp = net.address;
+        break;
+      }
+    }
+  }
+  res.json({ ip: localIp });
+});
+
+// Host live quiz
+app.post('/api/quiz/host', (req, res) => {
+  const { category, timeLimit } = req.body;
+  let filteredCards = [...db.flashcards];
+  if (category && category !== 'All Decks') {
+    filteredCards = filteredCards.filter(c => c.category === category);
+  }
+  
+  // Shuffle questions
+  for (let i = filteredCards.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [filteredCards[i], filteredCards[j]] = [filteredCards[j], filteredCards[i]];
+  }
+
+  quizSession = {
+    status: 'lobby',
+    category: category || 'All Decks',
+    timeLimit: parseInt(timeLimit) || 30,
+    currentQuestionIndex: 0,
+    questions: filteredCards.map(c => ({
+      id: c.id,
+      question: c.question,
+      correctAnswer: c.answer,
+      category: c.category,
+      difficulty: c.difficulty,
+      options: generateOptions(c.answer, db.flashcards)
+    })),
+    students: [],
+    answersSubmitted: {},
+    pointsGainedThisQuestion: {},
+    activeQuestionEndTime: null
+  };
+
+  res.json({ success: true, session: quizSession });
+});
+
+// Join live quiz lobby
+app.post('/api/quiz/join', (req, res) => {
+  const { nickname } = req.body;
+  if (!nickname || nickname.trim() === '') {
+    return res.status(400).json({ error: 'Nickname is required' });
+  }
+  if (quizSession.status !== 'lobby') {
+    return res.status(400).json({ error: 'Quiz is not in lobby state' });
+  }
+  if (quizSession.students.some(s => s.nickname.toLowerCase() === nickname.toLowerCase().trim())) {
+    return res.status(400).json({ error: 'Nickname already taken' });
+  }
+
+  const studentObj = {
+    nickname: nickname.trim(),
+    score: 0,
+    answeredCorrectly: false
+  };
+  quizSession.students.push(studentObj);
+
+  res.json({ success: true, student: studentObj });
+});
+
+// Start the quiz
+app.post('/api/quiz/start', (req, res) => {
+  if (quizSession.status !== 'lobby') {
+    return res.status(400).json({ error: 'Quiz is not in lobby state' });
+  }
+  if (quizSession.questions.length === 0) {
+    return res.status(400).json({ error: 'No questions available' });
+  }
+
+  quizSession.status = 'active';
+  quizSession.currentQuestionIndex = 0;
+  quizSession.answersSubmitted = {};
+  quizSession.pointsGainedThisQuestion = {};
+  quizSession.activeQuestionEndTime = new Date(Date.now() + quizSession.timeLimit * 1000).toISOString();
+
+  res.json({ success: true, session: quizSession });
+});
+
+// Move to next question
+app.post('/api/quiz/next', (req, res) => {
+  if (quizSession.status !== 'active') {
+    return res.status(400).json({ error: 'Quiz is not active' });
+  }
+  
+  quizSession.currentQuestionIndex += 1;
+  if (quizSession.currentQuestionIndex >= quizSession.questions.length) {
+    quizSession.status = 'ended';
+    quizSession.activeQuestionEndTime = null;
+  } else {
+    quizSession.answersSubmitted = {};
+    quizSession.pointsGainedThisQuestion = {};
+    quizSession.students.forEach(s => {
+      s.answeredCorrectly = false;
+    });
+    quizSession.activeQuestionEndTime = new Date(Date.now() + quizSession.timeLimit * 1000).toISOString();
+  }
+
+  res.json({ success: true, session: quizSession });
+});
+
+// Student submits an answer (supports updating/changing answer before time/reveal)
+app.post('/api/quiz/submit', (req, res) => {
+  const { nickname, answer } = req.body;
+  if (quizSession.status !== 'active') {
+    return res.status(400).json({ error: 'Quiz is not active' });
+  }
+  
+  const student = quizSession.students.find(s => s.nickname === nickname);
+  if (!student) {
+    return res.status(404).json({ error: 'Student not found in session' });
+  }
+
+  const currentQuestion = quizSession.questions[quizSession.currentQuestionIndex];
+  const isCorrect = currentQuestion.correctAnswer === answer;
+
+  // Subtract previous score adjustment for this question if they already submitted
+  if (!quizSession.pointsGainedThisQuestion) {
+    quizSession.pointsGainedThisQuestion = {};
+  }
+  const prevPoints = quizSession.pointsGainedThisQuestion[nickname] || 0;
+  student.score -= prevPoints;
+
+  // Calculate new points based on current time
+  let points = 0;
+  if (isCorrect) {
+    const endTime = new Date(quizSession.activeQuestionEndTime).getTime();
+    const timeLeft = Math.max(0, endTime - Date.now()) / 1000;
+    const speedBonus = Math.round(timeLeft * 15); // up to 450 pts (30s)
+    points = 1000 + speedBonus;
+  }
+
+  // Save the new state
+  quizSession.answersSubmitted[nickname] = answer;
+  quizSession.pointsGainedThisQuestion[nickname] = points;
+  student.score = Math.max(0, student.score + points); // Ensure score doesn't go below 0
+  student.answeredCorrectly = isCorrect;
+
+  res.json({ success: true, isCorrect, score: student.score });
+});
+
+// End the quiz session
+app.post('/api/quiz/end', (req, res) => {
+  quizSession.status = 'ended';
+  quizSession.activeQuestionEndTime = null;
+  res.json({ success: true, session: quizSession });
+});
+
+// State sync polling endpoint
+app.get('/api/quiz/state', (req, res) => {
+  let timeLeft = 0;
+  if (quizSession.status === 'active' && quizSession.activeQuestionEndTime) {
+    const end = new Date(quizSession.activeQuestionEndTime).getTime();
+    timeLeft = Math.max(0, Math.round((end - Date.now()) / 1000));
+  }
+
+  res.json({
+    status: quizSession.status,
+    category: quizSession.category,
+    timeLimit: quizSession.timeLimit,
+    currentQuestionIndex: quizSession.currentQuestionIndex,
+    totalQuestions: quizSession.questions.length,
+    students: quizSession.students,
+    answersSubmittedCount: Object.keys(quizSession.answersSubmitted).length,
+    timeLeft: timeLeft,
+    currentQuestion: quizSession.status === 'active' && quizSession.questions[quizSession.currentQuestionIndex] ? {
+      question: quizSession.questions[quizSession.currentQuestionIndex].question,
+      options: quizSession.questions[quizSession.currentQuestionIndex].options,
+      correctAnswer: quizSession.questions[quizSession.currentQuestionIndex].correctAnswer,
+      category: quizSession.questions[quizSession.currentQuestionIndex].category,
+      difficulty: quizSession.questions[quizSession.currentQuestionIndex].difficulty
+    } : null
+  });
+});
+
+// --- Existing API Routes ---
+
+// Reset Database
 app.post('/api/reset', (req, res) => {
   db = {
     flashcards: [...defaultCards],
@@ -210,13 +434,13 @@ app.post('/api/reset', (req, res) => {
   res.json({ success: true, message: 'Database reset successfully' });
 });
 
-// 2. Get categories
+// Get categories
 app.get('/api/categories', (req, res) => {
   const categories = [...new Set(db.flashcards.map(c => c.category))].sort();
   res.json(categories);
 });
 
-// 3. Search flashcards
+// Search flashcards
 app.get('/api/flashcards/search', (req, res) => {
   const query = (req.query.q || '').toLowerCase();
   const results = db.flashcards.filter(c => 
@@ -227,7 +451,7 @@ app.get('/api/flashcards/search', (req, res) => {
   res.json(results);
 });
 
-// 4. Get flashcards (supports filter & sorting)
+// Get flashcards (supports filter & sorting)
 app.get('/api/flashcards', (req, res) => {
   let cards = [...db.flashcards];
 
@@ -265,7 +489,7 @@ app.get('/api/flashcards', (req, res) => {
   res.json(cards);
 });
 
-// 5. Get flashcard by ID
+// Get flashcard by ID
 app.get('/api/flashcards/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const card = db.flashcards.find(c => c.id === id);
@@ -276,7 +500,7 @@ app.get('/api/flashcards/:id', (req, res) => {
   }
 });
 
-// 6. Create flashcard
+// Create flashcard
 app.post('/api/flashcards', (req, res) => {
   const { question, answer, category, difficulty, favorite } = req.body;
   
@@ -302,7 +526,7 @@ app.post('/api/flashcards', (req, res) => {
   res.status(201).json(newCard);
 });
 
-// 7. Update flashcard
+// Update flashcard
 app.put('/api/flashcards/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const index = db.flashcards.findIndex(c => c.id === id);
@@ -327,7 +551,7 @@ app.put('/api/flashcards/:id', (req, res) => {
   res.json({ success: true, count: 1, card: db.flashcards[index] });
 });
 
-// 8. Delete flashcard
+// Delete flashcard
 app.delete('/api/flashcards/:id', (req, res) => {
   const id = parseInt(req.params.id);
   const index = db.flashcards.findIndex(c => c.id === id);
@@ -341,7 +565,7 @@ app.delete('/api/flashcards/:id', (req, res) => {
   res.json({ success: true, count: 1 });
 });
 
-// 9. Get study logs
+// Get study logs
 app.get('/api/study-logs', (req, res) => {
   let logs = [...db.study_logs];
   logs.sort((a, b) => b.date.localeCompare(a.date));
@@ -354,14 +578,14 @@ app.get('/api/study-logs', (req, res) => {
   res.json(logs);
 });
 
-// 10. Get today's study count
+// Get today's study count
 app.get('/api/study-logs/today', (req, res) => {
   const todayStr = new Date().toISOString().substring(0, 10);
   const log = db.study_logs.find(l => l.date === todayStr);
   res.json({ count: log ? log.cards_count : 0 });
 });
 
-// 11. Log study activity
+// Log study activity
 app.post('/api/study-logs/log', (req, res) => {
   const todayStr = new Date().toISOString().substring(0, 10);
   const index = db.study_logs.findIndex(l => l.date === todayStr);
@@ -383,7 +607,6 @@ app.use(express.static(frontendBuildPath));
 
 // Catch-all route to serve index.html for Single Page Application routing (if needed)
 app.get('*', (req, res, next) => {
-  // If it starts with /api, forward to 404
   if (req.path.startsWith('/api')) {
     return next();
   }
@@ -394,6 +617,7 @@ app.get('*', (req, res, next) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Backend server running on http://localhost:${PORT}`);
+// Bind to 0.0.0.0 to accept connections from other devices on the local network
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`Backend server running on http://0.0.0.0:${PORT}`);
 });

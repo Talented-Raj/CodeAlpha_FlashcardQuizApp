@@ -89,6 +89,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     _buildDailyGoalProgress(context, flashcardProvider),
                     const SizedBox(height: 24),
 
+                    // Live Multiplayer Quiz Section
+                    _buildLiveQuizBanner(context),
+                    const SizedBox(height: 24),
+
                     // Categories section
                     _buildCategoriesSection(context, flashcardProvider, isWide),
                     const SizedBox(height: 24),
@@ -111,6 +115,106 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 4,
       ),
     );
+  }
+
+  Widget _buildLiveQuizBanner(BuildContext context) {
+    final theme = Theme.of(context);
+    final screenWidth = MediaQuery.of(context).size.width;
+    final isCompact = screenWidth < 500;
+
+    return CustomCard(
+      backgroundColor: AppColors.success.withOpacity(0.08),
+      borderSide: BorderSide(color: AppColors.success.withOpacity(0.2)),
+      child: isCompact 
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.flash_on, color: AppColors.success),
+                    const SizedBox(width: 8),
+                    Text(
+                      'LIVE MULTIPLAYER QUIZ',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.success,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Compete and Learn Together!',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Host a quiz lobby as Admin or join as a Student on any device.',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                CustomButton(
+                  text: 'Enter Arena',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/live-quiz-setup');
+                  },
+                  backgroundColor: AppColors.success,
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.flash_on, color: AppColors.success),
+                          const SizedBox(width: 8),
+                          Text(
+                            'LIVE MULTIPLAYER QUIZ',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.success,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Compete and Learn Together!',
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Host a quiz lobby as Admin or join as a Student on any device.',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.textTheme.bodyMedium?.color?.withOpacity(0.8),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                CustomButton(
+                  text: 'Enter Arena',
+                  onPressed: () {
+                    Navigator.pushNamed(context, '/live-quiz-setup');
+                  },
+                  backgroundColor: AppColors.success,
+                ),
+              ],
+            ),
+    ).animate().fade(delay: 150.ms, duration: 400.ms).slideY(begin: 0.1, end: 0);
   }
 
   Widget _buildDailyGoalProgress(BuildContext context, FlashcardProvider provider) {
