@@ -369,14 +369,15 @@ class _StudyScreenState extends State<StudyScreen> {
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(AppConstants.radiusLarge),
-        border: borderSide ??
-            Border.all(
-              color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
-              width: 1.5,
-            ),
+        border: borderSide != null
+            ? Border.fromBorderSide(borderSide)
+            : Border.all(
+                color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                width: 1.5,
+              ),
         boxShadow: [
           BoxShadow(
-            color: isDark ? Colors.black.withOpacity(0.2) : Colors.slate.withOpacity(0.04),
+            color: isDark ? Colors.black.withOpacity(0.2) : Colors.blueGrey.withOpacity(0.04),
             blurRadius: 12,
             offset: const Offset(0, 6),
           )

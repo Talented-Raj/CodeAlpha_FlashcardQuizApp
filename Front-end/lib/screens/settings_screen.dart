@@ -151,7 +151,7 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: const Text('Enable dark color theme palette'),
                     value: themeProvider.isDarkMode,
                     onChanged: (bool value) {
-                      themeProvider.toggleTheme(value);
+                      themeProvider.setThemeMode(value ? ThemeMode.dark : ThemeMode.light);
                     },
                     secondary: const Icon(Icons.dark_mode_outlined),
                   ),

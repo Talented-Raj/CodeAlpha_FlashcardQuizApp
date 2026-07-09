@@ -20,3 +20,9 @@ class FlashcardNotFoundException extends AppException {
   FlashcardNotFoundException(int id)
       : super('Flashcard Not Found', 'No flashcard exists with ID: $id');
 }
+
+class NetworkException extends AppException {
+  NetworkException(String message, [String? details])
+      : super('Network Failure: $message', details);
+}
+

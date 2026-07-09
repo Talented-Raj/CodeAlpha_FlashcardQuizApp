@@ -1,82 +1,18 @@
-# Miscellaneous
-*.class
-*.log
-*.pyc
-*.swp
-.DS_Store
-.atom/
-.buildlog/
-.history
-.svn/
-migrate.cfg
-
-# IntelliJ related
+# Miscellaneous IDEs
+.idea/
+.vscode/
 *.iml
 *.ipr
 *.iws
-.idea/
+.DS_Store
 
-# The Mindset tool
-.settings/
+# Backend-specific ignores
+Back-end/node_modules/
+Back-end/database.json
+Back-end/.env
+Back-end/*.log
 
-# Visual Studio Code related
-.vscode/
-
-# Flutter/Dart related
-.dart_tool/
-.flutter-plugins
-.flutter-plugins-dependencies
-.packages
-.pub-cache/
-.pub/
-/build/
-
-# Web related
-.web/
-
-# Android related
-*.apk
-*.ap_
-*.asec
-*.dex
-*.key
-*.nativecodehandler
-*.out
-*.p12
-*.so
-.gradle/
-local.properties
-/android/key.properties
-
-# iOS/macOS related
-*.mode1v3
-*.mode2v3
-*.nib
-*.pbxuser
-*.perspectivev3
-*.xcworkspace
-!default.xcworkspace
-DerivedData/
-Pods/
-build/
-ios/.symlinks/
-ios/Flutter/App.framework
-ios/Flutter/Flutter.framework
-ios/Flutter/Flutter.podspec
-ios/Flutter/Generated.xcconfig
-ios/Flutter/app.flx
-ios/Flutter/app.zip
-ios/Flutter/flutter_assets/
-ios/Flutter/flutter_play_single.json
-macos/Flutter/ephemeral/
-
-# Windows related
-/windows/flutter/ephemeral/
-/windows/flutter/Generated.xcconfig
-
-# Linux related
-/linux/flutter/ephemeral/
-
-# Crashlytics generated file
-android/app/google-services.json
-ios/Runner/GoogleService-Info.plist
+# Frontend build files (handled in Front-end/.gitignore, but just in case)
+Front-end/build/
+Front-end/.dart_tool/
+Front-end/.pub/

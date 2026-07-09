@@ -17,7 +17,7 @@ class AppConstants {
   static const String keyMonthlyBudget = 'monthly_budget';
 
   // Default Values
-  static const String defaultCurrency = '$';
+  static const String defaultCurrency = '\$';
   static const double defaultBudget = 1000.0;
 
   // Design Guidelines

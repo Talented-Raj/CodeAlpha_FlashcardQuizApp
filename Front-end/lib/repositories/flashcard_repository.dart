@@ -40,4 +40,16 @@ abstract class FlashcardRepository {
     String? sortBy,
     bool sortAscending = true,
   });
+
+  /// Retrieves today's completed study cards count.
+  Future<int> getStudiedTodayCount();
+
+  /// Logs a study activity (increments today's study count).
+  Future<void> logStudyActivity();
+
+  /// Retrieves study logs for the past specified number of days.
+  Future<List<Map<String, dynamic>>> getStudyLogsForPastDays(int days);
+
+  /// Resets the database, clearing all flashcards and study logs and re-seeding default cards.
+  Future<void> resetDatabase();
 }
