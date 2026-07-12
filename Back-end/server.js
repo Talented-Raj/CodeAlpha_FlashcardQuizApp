@@ -7,7 +7,9 @@ const os = require('os');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const DB_FILE = path.join(__dirname, 'database.json');
+const DB_FILE = process.env.VERCEL 
+  ? path.join('/tmp', 'database.json') 
+  : path.join(__dirname, 'database.json');
 
 app.use(cors());
 app.use(bodyParser.json());
