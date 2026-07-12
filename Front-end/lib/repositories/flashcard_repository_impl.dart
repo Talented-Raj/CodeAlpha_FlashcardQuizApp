@@ -8,7 +8,7 @@ import 'flashcard_repository.dart';
 
 class FlashcardRepositoryImpl implements FlashcardRepository {
   final DatabaseHelper? _dbHelper;
-  static const String _baseUrl = 'https://codealpha-flashcardquizapp-backend.onrender.com/api';
+  static const String _baseUrl = 'https://memora-backend-five.vercel.app/api';
 
   FlashcardRepositoryImpl({DatabaseHelper? dbHelper})
       : _dbHelper = kIsWeb ? null : (dbHelper ?? DatabaseHelper.instance);
