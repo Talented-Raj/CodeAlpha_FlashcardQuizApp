@@ -9,7 +9,7 @@ class FlashcardProvider extends ChangeNotifier {
   final FlashcardRepository _repository;
 
   // Live Quiz State
-  String _serverUrl = 'http://localhost:5000';
+  String _serverUrl = 'https://codealpha-flashcardquizapp-backend.onrender.com';
   String _hostIp = '';
   String _studentNickname = '';
   bool _isQuizHost = false;
